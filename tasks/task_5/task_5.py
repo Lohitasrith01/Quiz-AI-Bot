@@ -5,21 +5,22 @@ sys.path.append(os.path.abspath('../../'))
 from tasks.task_3.task_3 import DocumentProcessor
 from tasks.task_4.task_4 import EmbeddingClient
 
-
 # Import Task libraries
 from langchain_core.documents import Document
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 
 class ChromaCollectionCreator:
-    def __init__(self, processor, embed_model):
+    def __init__(self, processor, embed_model, persist_directory):
         """
         Initializes the ChromaCollectionCreator with a DocumentProcessor instance and embeddings configuration.
         :param processor: An instance of DocumentProcessor that has processed documents.
-        :param embeddings_config: An embedding client for embedding documents.
+        :param embed_model: An embedding client for embedding documents.
+        :param persist_directory: Directory to persist the Chroma collection.
         """
         self.processor = processor      # This will hold the DocumentProcessor from Task 3
-        self.embed_model = embed_model  # This will hold the EmbeddingClient from Task 4
+        self.embed_model = embed_model
+        self.persist_directory = persist_directory # This will hold the EmbeddingClient from Task 4
         self.db = None                  # This will hold the Chroma collection
     
     def create_chroma_collection(self):
@@ -54,23 +55,60 @@ class ChromaCollectionCreator:
             return
 
         # Step 2: Split documents into text chunks
-        # Use a TextSplitter from Langchain to split the documents into smaller text chunks
-        # https://python.langchain.com/docs/modules/data_connection/document_transformers/character_text_splitter
-        # [Your code here for splitting documents]
-        
+        text_splitter = CharacterTextSplitter(
+            separator="\n\n",
+            chunk_size=2000,  # Adjusted chunk size
+            chunk_overlap=400,
+            length_function=len,
+            is_separator_regex=False,
+        )
+
+        aux_array = list(map(lambda page: page.page_content, self.processor.pages))
+        texts = text_splitter.create_documents(aux_array)
+
         if texts is not None:
             st.success(f"Successfully split pages to {len(texts)} documents!", icon="✅")
+        print(f"Number of texts: {len(texts)}")
 
-        # Step 3: Create the Chroma Collection
-        # https://docs.trychroma.com/
-        # Create a Chroma in-memory client using the text chunks and the embeddings model
-        # [Your code here for creating Chroma collection]
+        # Debugging: Print the first few text chunks to verify
+        for idx, text in enumerate(texts[:5]):
+            print(f"Text Chunk {idx}: {text.page_content}")
+
+        # Ensure there are no empty text chunks
+        texts = [text for text in texts if text.page_content.strip() != ""]
+        if len(texts) == 0:
+            st.error("All text chunks are empty after processing!", icon="🚨")
+            return
+
+        print(f"Number of texts after removing empty chunks: {len(texts)}")
+
+        # Step 3: Create the Chroma Collection in batches
+        try:
+            for i in range(0, len(texts), 25):
+                batch_texts = texts[i:i + 25]
+                print(f"Processing batch {i // 25 + 1} with {len(batch_texts)} documents.")
+                
+                # Debugging: Print details about the current batch
+                for idx, doc in enumerate(batch_texts):
+                    print(f"Batch {i // 25 + 1}, Document {idx}: {doc.page_content}")
+
+                if self.db is None:
+                    self.db = Chroma.from_documents(batch_texts, self.embed_model, persist_directory=self.persist_directory)
+                else:
+                    # If self.db already exists, update it with new documents
+                    self.db.add_documents(batch_texts)
+        except Exception as e:
+            print(f"Error creating Chroma collection: {e}")
+            st.error(f"Error creating Chroma collection: {e}", icon="🚨")
         
         if self.db:
             st.success("Successfully created Chroma Collection!", icon="✅")
         else:
             st.error("Failed to create Chroma Collection!", icon="🚨")
     
+    def as_retriever(self):
+        return self.db.as_retriever()
+
     def query_chroma_collection(self, query) -> Document:
         """
         Queries the created Chroma collection for documents similar to the query.
@@ -81,7 +119,9 @@ class ChromaCollectionCreator:
         if self.db:
             docs = self.db.similarity_search_with_relevance_scores(query)
             if docs:
-                return docs[0]
+                # Debugging: Print the returned documents
+                print(f"Returned Docs: {docs}")
+                return docs[0][0]  # Ensure to return the Document object, not a tuple
             else:
                 st.error("No matching documents found!", icon="🚨")
         else:
@@ -93,13 +133,15 @@ if __name__ == "__main__":
     
     embed_config = {
         "model_name": "textembedding-gecko@003",
-        "project": "YOUR PROJECT ID HERE",
-        "location": "us-central1"
+        "project": "sample-mission-427021",
+        "location": "us-central1",
+        "google_api_key": "AIzaSyAT5ks9-CV8iTA3Lq7G8sT6Wts--qk6vX4"
     }
     
     embed_client = EmbeddingClient(**embed_config) # Initialize from Task 4
     
-    chroma_creator = ChromaCollectionCreator(processor, embed_client)
+    persist_directory = './chroma_db'  # Ensure this is passed correctly
+    chroma_creator = ChromaCollectionCreator(processor, embed_client, persist_directory)
     
     with st.form("Load Data to Chroma"):
         st.write("Select PDFs for Ingestion, then click Submit")

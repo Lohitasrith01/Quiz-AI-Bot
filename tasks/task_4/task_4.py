@@ -1,6 +1,7 @@
 # embedding_client.py
 
 from langchain_google_vertexai import VertexAIEmbeddings
+import os
 
 class EmbeddingClient:
     """
@@ -29,12 +30,16 @@ class EmbeddingClient:
     Note: The 'embed_query' method has been provided for you. Focus on correctly initializing the class.
     """
     
-    def __init__(self, model_name, project, location):
+    def __init__(self, model_name, project, location, google_api_key):
+        os.environ["GOOGLE_API_KEY"] = google_api_key
         # Initialize the VertexAIEmbeddings client with the given parameters
         # Read about the VertexAIEmbeddings wrapper from Langchain here
         # https://python.langchain.com/docs/integrations/text_embedding/google_generative_ai
+        
         self.client = VertexAIEmbeddings(
-            #### YOUR CODE HERE ####
+            model_name=model_name,
+            project=project,
+            location=location
         )
         
     def embed_query(self, query):
@@ -62,10 +67,11 @@ class EmbeddingClient:
 
 if __name__ == "__main__":
     model_name = "textembedding-gecko@003"
-    project = "YOUR PROJECT ID HERE"
+    project = "sample-mission-427021"
     location = "us-central1"
+    google_api_key = "AIzaSyAT5ks9-CV8iTA3Lq7G8sT6Wts--qk6vX4"
 
-    embedding_client = EmbeddingClient(model_name, project, location)
+    embedding_client = EmbeddingClient(model_name, project, location, google_api_key)
     vectors = embedding_client.embed_query("Hello World!")
     if vectors:
         print(vectors)
