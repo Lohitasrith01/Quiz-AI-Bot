@@ -3,7 +3,7 @@ db/
 __pycache__/
 application_key.json
 authentication.json
-
+.env
 ai-data.json
 
 # Tasks
