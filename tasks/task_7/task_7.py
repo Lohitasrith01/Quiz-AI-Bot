@@ -108,7 +108,7 @@ if __name__ == "__main__":
         "model_name": "textembedding-gecko@003",
         "project": "sample-mission-427021",
         "location": "us-central1",
-        "google_api_key": "AIzaSyAT5ks9-CV8iTA3Lq7G8sT6Wts--qk6vX4"
+        "google_api_key": os.getenv("GOOGLE_API_KEY")
     }
     
     screen = st.empty()
